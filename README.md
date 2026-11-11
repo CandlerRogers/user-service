@@ -1,6 +1,6 @@
-# SimVest User Service
+# Microservice User Service
 
-A Python Flask REST API microservice for managing user accounts in the SimVest paper trading application.
+A Python Flask REST API microservice for managing user accounts in CS361
 
 ## Purpose
 
