@@ -10,6 +10,7 @@ app = Flask(__name__)
 
 # --- SERVICE ROUTES ---
 
+# route to check status of microservice
 @app.route("/health", methods=["GET"])
 def health_check():
     return jsonify({
@@ -17,6 +18,7 @@ def health_check():
         "status": "running"
     }), 200
 
+# route for creating a new user
 @app.route("/user", methods=["POST"])
 def create_user():
     """Create a new user account."""
@@ -95,6 +97,59 @@ def create_user():
         if connection is not None and connection.is_connected():
             connection.close()
 
+# route to get existing user data
+@app.route("/user", methods=["GET"])
+def get_user():
+    """Retrieve user info by stored userID"""
+
+    # set db query parameters
+    user_id = request.args.get("userID")
+
+    # verify userID provided 
+    if not user_id:
+        return jsonify({"error": "Missing userID"}), 400
+
+    # verify input is a potential valid userID (positive#)
+    if not user_id.isdigit() or int(user_id) < 1:
+        return jsonify({"error": "Invalid userID"}), 400
+
+    connection = None
+    cursor = None
+
+    try:
+        # connect to db
+        connection = get_db_connection()
+
+        # return SQL query as dict
+        cursor = connection.cursor(dictionary=True)
+
+        # build query for user of matching ID
+        query = """
+            SELECT userID, username, email
+            FROM users
+            WHERE userID = %s
+        """
+
+        cursor.execute(query, (int(user_id),))
+
+        # should only return one unique user
+        user = cursor.fetchone()
+
+        # return error if no matching user in db
+        if user is None:
+            return jsonify({"error": "User not found"}), 404
+
+        # return found user
+        return jsonify(user), 200
+
+    except mysql.connector.Error:
+        return jsonify({"error": "Database operation failure"}), 500
+
+    # close db cursor / connection
+    finally:
+        if cursor is not None:
+            cursor.close()
+    
 
 # Start the User Service
 if __name__ == "__main__":
