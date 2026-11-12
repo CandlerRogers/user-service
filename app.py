@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 import mysql.connector
 
 from db import get_db_connection
@@ -226,6 +226,78 @@ def update_user(user_id):
                 cursor.close()
             if connection is not None and connection.is_connected():
                 connection.close()
+
+@app.route("/auth/login", methods=["POST"])
+def authenticate_user():
+    """Validate user credentials and return an authentication result."""
+
+    # Read the JSON request
+    data = request.get_json(silent=True)
+
+    # Verify that the request contains a JSON object
+    if not isinstance(data, dict):
+        return jsonify({"error": "A JSON object is required"}), 400
+
+    # Extract the login credentials
+    username = data.get("username")
+    password = data.get("password")
+
+    # Validate the required fields
+    if not all(
+        isinstance(value, str) and value.strip()
+        for value in (username, password)
+    ):
+        return jsonify({"error": "Username and password are required"}), 400
+
+    # Normalize username formatting
+    username = username.strip()
+
+    connection = None
+    cursor = None
+
+    try:
+        # Connect to MySQL
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        # Retrieve the account and stored password hash
+        query = """
+            SELECT userID, username, email, password_hash
+            FROM users
+            WHERE username = %s
+        """
+
+        cursor.execute(query, (username,))
+        user = cursor.fetchone()
+
+        # Reject invalid usernames and passwords
+        if user is None or not check_password_hash(
+            user["password_hash"], password
+        ):
+            return jsonify({
+                "error": "Invalid username or password"
+            }), 401
+
+        # Return user information without the password hash
+        return jsonify({
+            "message": "Authentication successful",
+            "user": {
+                "userID": user["userID"],
+                "username": user["username"],
+                "email": user["email"]
+            }
+        }), 200
+
+    except mysql.connector.Error:
+        return jsonify({"error": "Database operation failed"}), 500
+
+    finally:
+        # Close db cursor and connection
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None and connection.is_connected():
+            connection.close()
 
 # Start the User Service
 if __name__ == "__main__":
