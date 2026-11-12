@@ -1,12 +1,40 @@
+import os
+import hmac
+
+from dotenv import load_dotenv
+
 from flask import Flask, jsonify, request
 from werkzeug.security import generate_password_hash, check_password_hash
 import mysql.connector
 
 from db import get_db_connection
 
+# Load environment variables
+load_dotenv()
+
+# Retrieve the service API key
+SERVICE_API_KEY = os.getenv("SERVICE_API_KEY")
+
+### TODO: SECURE ACCESS USER AUTH TBD ###
+# Prevent the service from starting without its API key
+# if not SERVICE_API_KEY:
+#   raise RuntimeError("SERVICE_API_KEY is not configured")
+
 # Initialize the User Service
 app = Flask(__name__)
 
+### TODO: SECURE ACCESS USER AUTH TBD ###
+# def verify_service_key():
+#     """Verify that the request contains a valid service API key."""
+#
+#     # Retrieve the key from the HTTP request header
+#     provided_key = request.headers.get("X-Service-Key", "")
+#
+#     # Securely compare the provided and configured keys
+#     if not hmac.compare_digest(provided_key, SERVICE_API_KEY):
+#         return False
+#
+#     return True
 
 # --- SERVICE ROUTES ---
 
@@ -112,6 +140,11 @@ def get_user():
     # verify input is a potential valid userID (positive#)
     if not user_id.isdigit() or int(user_id) < 1:
         return jsonify({"error": "Invalid userID"}), 400
+
+    #### TODO: SECURE ACCESS USER AUTH TBD ###
+    ###  Verify that the request comes from a trusted service TBD ###
+    # if not verify_service_key():
+    #     return jsonify({"error": "Unauthorized service request"}), 403
 
     connection = None
     cursor = None
