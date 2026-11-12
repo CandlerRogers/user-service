@@ -149,7 +149,83 @@ def get_user():
     finally:
         if cursor is not None:
             cursor.close()
-    
+
+# route to update user's name or email
+@app.route("/user/<int:user_id>", methods=["PUT"])
+def update_user(user_id):
+        """Update existing user username and/or email"""
+
+        # read incoming JSON
+        data = request.get_json(silent=True)
+
+        # verify JSON recieved
+        if not isinstance(data, dict):
+            return jsonify({"error": "A JSON object is needed for this request"}), 400
+
+        # unpack updateed info from JSON
+        username = data.get("username")
+        email = data.get("email")
+
+        # validate inputs
+        if not all(isinstance(value, str) and value.strip() for value in (username, email)):
+            return jsonify({"error": "Username and email required for update"}), 400
+
+        # strip whitespace form inputs
+        username = username.strip()
+        email = email.strip()
+
+        # check for appropriate lengths
+        if len(username) > 80 or len(email) > 120:
+            return jsonify({"error": "Username must be < 80 chars and email < 120"}), 400
+
+        # validate user ID
+        if user_id < 1:
+            return jsonify({"error": "Invalid userID"}), 400
+
+        connection = None
+        cursor = None
+
+        try:
+            # make db cpnneciton
+            connection = get_db_connection()
+            cursor = connection.cursor(dictionary=True)
+
+            # check ofr user in db
+            cursor.execute("SELECT userID FROM users WHERE userID = %s", (user_id,))
+
+            user = cursor.fetchone()
+
+            if user is None:
+                return jsonify({"error": "No such user found"}), 404
+
+            # update valid user info
+            query = """UPDATE users SET username = %s, email = %s WHERE userID = %s"""
+
+            cursor.execute(query, (username, email, user_id))
+
+            # save updates info to db
+            connection.commit()
+
+            # return the changes to confirm
+            return jsonify({
+                "userID": user_id,
+                "username": username,
+                "email": email,
+                "message": "User update completed successfully"
+            }), 200
+
+        except mysql.connector.IntegrityError:
+            return jsonify({"error": "Username or email already in use"}), 409
+
+        except mysql.connector.Error:
+            return jsonify({"error": "Database operation failure"}), 500
+
+        finally:
+            #close cursor and discnnect db
+            if cursor is not None:
+                cursor.close()
+            if connection is not None and connection.is_connected():
+                connection.close()
 
 # Start the User Service
 if __name__ == "__main__":
